@@ -6,20 +6,13 @@
 
 #include "FileTree.hpp"
 #include "FileInfo.hpp"
+#include "Utility.hpp"
 
 /// @brief Global container to store discovered FileInfo objects.
 std::vector<FileInfo> fileList;
 
 /**
  * @brief Callback function used during directory traversal.
- * 
- * Constructs a full path from directory and filename, reads metadata using FileInfo,
- * and stores the object in a global list if it's a regular file.
- * 
- * @param path The parent directory path.
- * @param name The name of the file or subdirectory.
- * @param depth The current depth of the traversal (unused here).
- * @return Always returns 0.
  */
 int report(const std::string& path, const std::string& name, int depth) {
     std::filesystem::path fullPath = std::filesystem::path(path) / name;
@@ -32,16 +25,6 @@ int report(const std::string& path, const std::string& name, int depth) {
     return 0;
 }
 
-/**
- * @brief Entry point for the file discovery and reporting program.
- * 
- * Validates command-line arguments, sets up a FileTree walker, invokes
- * recursive traversal, and prints sorted file info based on file size.
- * 
- * @param argc Argument count.
- * @param argv Argument vector.
- * @return 0 on success, 1 on error.
- */
 int main(int argc, char* argv[]) {
     if (argc < 2) {
         std::cerr << "Usage: " << argv[0] << " <directory>\n";
@@ -51,18 +34,21 @@ int main(int argc, char* argv[]) {
     std::filesystem::path dir(argv[1]);
     std::cout << "Searching for files in directory: " << dir << "\n";
 
-    // Setup and execute file traversal
-    FileTree walker(/*followsymlinks=*/false);
+    // Traverse directory and populate fileList
+    FileTree walker(false);
     walker.setCallback(&report);
     walker.walk(dir.string());
 
-    // Sort files by size in ascending order
-    std::sort(fileList.begin(), fileList.end(),
-        [](const FileInfo& a, const FileInfo& b) {
-            return a.size() < b.size();
-        });
+    std::cout << "Total files before filtering: " << fileList.size() << "\n";
 
-    // Print results
+    // Run removeUniqueSizes
+    Utility deduper(fileList);
+    std::size_t removed = deduper.removeUniqueSizes();
+
+    std::cout << "Removed " << removed << " files with unique sizes.\n";
+    std::cout << "Files remaining: " << fileList.size() << "\n\n";
+
+    // Print final filtered file list
     for (const auto& file : fileList) {
         std::cout << file.path() << " - " << file.size() << " bytes\n";
     }

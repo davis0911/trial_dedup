@@ -6,6 +6,7 @@
 namespace {
 /// @brief Maximum allowed depth for recursive directory traversal
 constexpr int MAX_RECURSION_DEPTH = 50;
+
 namespace fs = std::filesystem;
 }
 
@@ -39,30 +40,36 @@ int FileTree::walk(const std::string& dir, int recursionLevel) {
 
     for (const auto& entry : fs::directory_iterator(dirPath, fs::directory_options::skip_permission_denied, ec)) {
         if (ec) {
-            std::cerr << "Error reading directory: " << ec.message() << '\n';
+            std::cerr << "Error reading directory '" << dirPath << "': " << ec.message() << '\n';
             continue;
         }
 
+        //entry is of type std::filesystem::directory_entry.
+        //This is an object that represents a directory entry (file, dir, symlink, etc.).
+        // But entry is not a path itself — it's an object that contains a path along with cached metadata (like file type, permissions, etc.).
         const auto& path = entry.path();
         const std::string name = path.filename().string();
 
-        bool shouldRecurse = false;
+        std::error_code status_ec;
+        fs::file_status stat = entry.symlink_status(status_ec);
+        if (status_ec) {
+            std::cerr << "Error: Cannot get file status for " << path << ": " << status_ec.message() << "\n";
+            continue;
+        }
 
-        if (fs::is_symlink(path, ec)) {
+        if (fs::is_symlink(stat)) {
             if (m_followsymlinks && m_callback) {
                 m_callback(dirPath.string(), name, recursionLevel);
-                shouldRecurse = true;
+                if (fs::is_directory(path, ec)) {
+                    walk(path.string(), recursionLevel + 1);
+                }
             }
-        } else if (fs::is_directory(path, ec)) {
-            shouldRecurse = true;
-        } else if (fs::is_regular_file(path, ec)) {
+        } else if (fs::is_directory(stat)) {
+            walk(path.string(), recursionLevel + 1);
+        } else if (fs::is_regular_file(stat)) {
             if (m_callback) {
                 m_callback(dirPath.string(), name, recursionLevel);
             }
-        }
-
-        if (shouldRecurse) {
-            walk(path.string(), recursionLevel + 1);
         }
     }
 
@@ -85,6 +92,7 @@ int FileTree::walk(const std::string& dir, int recursionLevel) {
 int FileTree::handlePossibleFile(const fs::path& possibleFile, int recursionLevel) {
     std::error_code ec;
 
+    //File doesn't exist in the first place. Wrong name passed.
     if (!fs::exists(possibleFile, ec)) {
         return -1;
     }
@@ -92,20 +100,34 @@ int FileTree::handlePossibleFile(const fs::path& possibleFile, int recursionLeve
     const std::string path = possibleFile.parent_path().string() + "/";
     const std::string filename = possibleFile.filename().string();
 
-    if (fs::is_symlink(possibleFile, ec)) {
+    fs::file_status stat = fs::symlink_status(possibleFile, ec);
+    if (ec) {
+        std::cerr << "Error getting status for file: " << possibleFile << ": " << ec.message() << "\n";
+        return -1;
+    }
+
+    if (fs::is_symlink(stat)) {
         if (m_followsymlinks && m_callback) {
-            m_callback(path, filename, recursionLevel);
+            //m_callback(path, filename, recursionLevel);
+            if (fs::is_directory(possibleFile, ec)) {
+                walk(possibleFile.string(), recursionLevel + 1);
+            }
         }
         return 0;
     }
 
-    if (fs::is_directory(possibleFile, ec)) {
+    /**
+     * This is just a safety net because there could be a case
+     * where file states change. Paul Dreik included this part in
+     * his code. Would be interesting to see if this every happens.
+     */
+    if (fs::is_directory(stat)) {
         std::cerr << "Dirlist::handlePossibleFile: Unexpected directory.\n"
                   << "File: \"" << possibleFile.string() << "\"\n";
         return -2;
     }
 
-    if (fs::is_regular_file(possibleFile, ec)) {
+    if (fs::is_regular_file(stat)) {
         if (m_callback) {
             m_callback(path, filename, recursionLevel);
         }
@@ -114,30 +136,4 @@ int FileTree::handlePossibleFile(const fs::path& possibleFile, int recursionLeve
 
     std::cout << "Dirlist::handlePossibleFile: Unrecognized file type.\n";
     return -1;
-}
-
-/**
- * @brief Splits a full file path into directory and filename components.
- * 
- * This function uses `std::filesystem::path` to extract the parent path
- * and filename from a full path string.
- * 
- * @param[out] path The extracted directory path (including trailing '/').
- * @param[out] filename The extracted filename.
- * @param[in] input The full file path to split.
- * @return int 
- *         - 0 on success
- *         - -1 if no parent path was found
- */
-int splitFilename(std::string& path, std::string& filename, const std::string& input) {
-    fs::path fullPath(input);
-    if (fullPath.has_parent_path()) {
-        path = fullPath.parent_path().string() + "/";
-        filename = fullPath.filename().string();
-        return 0;
-    } else {
-        path.clear();
-        filename = input;
-        return -1;
-    }
 }

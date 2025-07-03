@@ -6,7 +6,10 @@
  * @param path Full path to a file or directory.
  */
 FileInfo::FileInfo(std::filesystem::path path)
-    : m_path(std::move(path)) {}
+    // This is called Pass-by-value and move assignment. This is the best way of doing it here. Pass by reference is not efficient 
+    //here and can cause memory leaks.
+    : m_path(std::move(path)) 
+    {}
 
 /**
  * @brief Reads metadata about the file at the stored path.
@@ -21,6 +24,7 @@ bool FileInfo::readFileInfo() {
     std::error_code ec;
 
     // Get file type information without following symlinks
+    //The datatype is file_status.
     auto status = std::filesystem::symlink_status(m_path, ec);
     if (ec) return false;
 
@@ -43,7 +47,7 @@ bool FileInfo::readFileInfo() {
  * @brief Gets the size of the file.
  * @return File size in bytes, or 0 if not a regular file.
  */
-FileInfo::filesizetype FileInfo::size() const noexcept {
+FileInfo::filesizetype FileInfo::size() const{
     return m_size;
 }
 
@@ -51,7 +55,7 @@ FileInfo::filesizetype FileInfo::size() const noexcept {
  * @brief Gets the original filesystem path of the file.
  * @return Reference to the stored path.
  */
-const std::filesystem::path& FileInfo::path() const noexcept {
+const std::filesystem::path& FileInfo::path() const{
     return m_path;
 }
 
@@ -59,7 +63,7 @@ const std::filesystem::path& FileInfo::path() const noexcept {
  * @brief Checks if the file is a regular file.
  * @return true if regular, false otherwise.
  */
-bool FileInfo::isRegularFile() const noexcept {
+bool FileInfo::isRegularFile() const{
     return m_is_regular;
 }
 
@@ -67,6 +71,14 @@ bool FileInfo::isRegularFile() const noexcept {
  * @brief Checks if the file is a directory.
  * @return true if directory, false otherwise.
  */
-bool FileInfo::isDirectory() const noexcept {
+bool FileInfo::isDirectory() const{
     return m_is_directory;
+}
+
+void FileInfo::set_remove_unique_flag(bool flag){
+    m_remove_unique_flag = flag;
+}
+
+bool FileInfo::remove_unique_flag() const{
+    return m_remove_unique_flag;
 }

@@ -34,34 +34,48 @@ public:
     bool readFileInfo();
 
     /**
+     * @brief Sets the delete flag for this file.
+     * @param flag true to mark for removal, false otherwise.
+     */
+    void set_remove_unique_flag(bool flag);
+
+    /**
+     * @brief Checks if the file is marked for removal.
+     * @return true if marked, false otherwise.
+     */
+    bool remove_unique_flag() const;
+
+    /**
      * @brief Returns the file size in bytes.
      * @return File size as `filesizetype`.
      */
-    [[nodiscard]] filesizetype size() const noexcept;
+    filesizetype size() const;
 
     /**
      * @brief Returns the original path of the file.
      * @return Path object referencing the full file path.
      */
-    [[nodiscard]] const std::filesystem::path& path() const noexcept;
+    const std::filesystem::path& path() const;
 
     /**
      * @brief Checks whether the file is a regular file.
      * @return true if it's a regular file, false otherwise.
      */
-    [[nodiscard]] bool isRegularFile() const noexcept;
+    bool isRegularFile() const;
 
     /**
      * @brief Checks whether the path points to a directory.
      * @return true if it's a directory, false otherwise.
      */
-    [[nodiscard]] bool isDirectory() const noexcept;
+    bool isDirectory() const;
 
 private:
     std::filesystem::path m_path;     ///< Full file or directory path.
     filesizetype m_size = 0;          ///< File size in bytes (0 if not a regular file).
     bool m_is_regular = false;        ///< True if path is a regular file.
     bool m_is_directory = false;      ///< True if path is a directory.
+    bool m_remove_unique_flag = false;        ///< True if file should be removed during cleanup.
+
 };
 
 #endif // FILEINFO_HPP

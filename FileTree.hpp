@@ -8,7 +8,7 @@
  * @class FileTree
  * @brief Recursively traverses a directory and reports files.
  * 
- * This class uses modern C++17 features (`std::filesystem`) to perform
+ * This class uses (`std::filesystem`) to perform
  * recursive directory traversal and reports discovered files or symbolic links
  * via a user-defined callback.
  */
