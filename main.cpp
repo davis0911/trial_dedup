@@ -9,121 +9,150 @@
 #include "FileInfo.hpp"
 #include "Utility.hpp"
 
-/// @brief Global container to store discovered FileInfo objects.
 std::vector<FileInfo> fileList;
 
 /**
- * @brief Callback function used during directory traversal.
+ * @brief Callback function to process a file or directory during traversal.
+ *
+ * This function checks if the given file should be skipped based on its path.
+ * If it is not skipped and is a regular file of at least 1KB, it is added to the global file list.
+ *
+ * @param path The directory path being scanned.
+ * @param name The name of the file.
+ * @param depth The depth of the traversal.
+ * @return Always returns 0.
  */
 int report(const std::string& path, const std::string& name, int depth) {
     std::filesystem::path fullPath = std::filesystem::path(path) / name;
-    const std::unordered_set<std::string> skipDuplication={
+
+    /// Set of directory names to skip during traversal.
+    const std::unordered_set<std::string> skipDuplication = {
         ".git", ".config", ".cache", ".vscode", ".local", ".venv", ".mozilla", ".thunderbird"
     };
-    for(const auto &part: fullPath){
-        if(skipDuplication.contains(part.string())){
+
+    for (const auto& part : fullPath) {
+        if (skipDuplication.contains(part.string())) {
             return 0;
         }
     }
+
     FileInfo fi(fullPath);
 
-    if (fi.readFileInfo() && fi.isRegularFile() && fi.size()>=1024) {
+    if (fi.readFileInfo() && fi.isRegularFile() && fi.size() >= 1024) {
         fileList.push_back(fi);
     }
 
     return 0;
 }
 
-int main(int argc, char* argv[]) {
-    if (argc < 2) {
-        std::cerr << "Usage: " << argv[0] << " <directory>\n";
-        return 1;
-    }
-
-    std::filesystem::path dir(argv[1]);
+/**
+ * @brief Finds and reports exact duplicate files within a given directory.
+ *
+ * This function performs several stages of duplicate detection:
+ * - Walking the file tree and collecting eligible files
+ * - Removing files with unique sizes
+ * - Removing files with unique beginning byte patterns
+ * - Removing files with unique hash values
+ * - Grouping and printing remaining files by identical sizes
+ *
+ * @param filename Path to the directory in which to search for duplicate files.
+ */
+void findExactDuplicates(char* filename) {
+    std::filesystem::path dir(filename);
     std::cout << "Searching for files in directory: " << dir << "\n";
 
-    // Traverse directory and populate fileList
+    // This function is used to walk the specified directory.
+    //The false here indicates that the program should not follow symlinks.
     FileTree walker(false);
     walker.setCallback(&report);
     walker.walk(dir.string());
 
     std::cout << "Total files before filtering: " << fileList.size() << "\n";
-    // for(auto &it: fileList){
-    //     for(const auto &part: it.path()){
-    //         std::cout<<part<<" ";
-    //     }
-    //     std::cout<<"\n";
-    // }
-    // Run removeUniqueSizes
-    // Utility deduper(fileList);
-    // std::size_t removed = deduper.removeUniqueSizes();
-    // for(auto &it: fileList){
-    //     std::cout<<it.path()<<" "<<it.size()<<"\n";
-    // }
 
-    //Run removeUniqueSizes
+    //This object of Utility class is used to find duplicate files using various techniques.
     Utility deduper(fileList);
-    std::size_t removed = deduper.removeUniqueSizes();
 
+    //1.
+    //removeUniqueSizes removes all the files with unique file size within the mentioned directory and 
+    //following sub-directories and returns the number of removed files.
+    std::size_t removed = deduper.removeUniqueSizes();
     std::cout << "Removed " << removed << " files with unique sizes.\n";
     std::cout << "Files remaining: " << fileList.size() << "\n\n";
 
-    // Print final filtered file list
-    // for (const auto& file : fileList) {
-    //     std::cout << file.path() << " - " << file.size() << " bytes\n";
-    // }
-
-    for(auto &file: fileList){
+    //2.
+    // This serves as a quick content-based pre-filter to eliminate files that differ early,
+    // reducing the workload for full hashing.
+    for (auto& file : fileList) {
         file.readFirstBytes();
     }
-    removed=deduper.removeUniqueBuffer();
-    std::cout<<"Removed "<<removed<<" files with different first bytes.\n";
-    std::cout<<"Files remaining "<<fileList.size()<<"\n\n";
+    //removeUniqueBuffer removes all the files with unique firstbytes(default buffer size set to 4kB)
+    //and returns the total number of such removed files.
+    removed = deduper.removeUniqueBuffer();
+    std::cout << "Removed " << removed << " files with unique first bytes.\n";
+    std::cout << "Files remaining " << fileList.size() << "\n\n";
 
-    for(auto &file: fileList){
-        file.readLastBytes();
-    }
-    removed=deduper.removeUniqueBuffer();
-    std::cout<<"Removed "<<removed<<" files with different last bytes.\n";
-    std::cout<<"Files remaining "<<fileList.size()<<"\n\n";
-
+    //3.
+    //The setHash function is used to hash the contents of the entire file and store it in the form 
+    //of a string in the member-variable of the class FileInfo called m_blake3_val.
     deduper.setHash();
-    removed=deduper.removeUniqueHashes();
-    std::cout<<"Removed "<<removed<<" files with unique hashes"<<"\n";
-    std::cout<<"Files remaining "<<fileList.size()<<"\n\n";
 
+    //removeUniqueHashes removes all the files with unique hashes from the fileList and returns the number
+    //of files which it removed.
+    removed = deduper.removeUniqueHashes();
+    std::cout << "Removed " << removed << " files with unique hashes\n";
+    std::cout << "Files remaining " << fileList.size() << "\n\n";
+
+    //This is used to sort the FileList based on the size of the files.
     deduper.sortFilesBySize();
-    int count=1;
-    int beg=0;
-    for(int i=1; i<fileList.size(); ++i){
-        if(fileList[i].size()==fileList[i-1].size()){
+
+    //The code given below is to display all files which are duplicates and their regarding details.
+    int count = 1;
+    int beg = 0;
+    for (int i = 1; i < fileList.size(); ++i) {
+        if (fileList[i].size() == fileList[i - 1].size()) {
             count++;
-        }
-        else{
-            int interval=beg+count;
-            std::cout<<"Found "<<count<<" files of size "<<fileList[beg].size()<<"\n";
-            for(int j=beg; j<interval; j++){
-                std::cout<<fileList[j].path()<<"\n";
+        } else {
+            int interval = beg + count;
+            std::cout << "Found " << count << " files of size " << fileList[beg].size() << "\n";
+            for (int j = beg; j < interval; j++) {
+                std::cout << fileList[j].path() << "\n";
             }
-            std::cout<<"\n\n";
-            beg=i;
-            count=1;
+            std::cout << "\n\n";
+            beg = i;
+            count = 1;
         }
     }
-    //This will always get executed.
-    if(count!=1){
-        int interval=beg+count;
-        //std::cout<<beg<<" "<<count<<"\n";
-        std::cout<<"Found "<<count<<" files of size "<<fileList[beg].size()<<"\n";
-        for(int j=beg; j<(interval); j++){
-            std::cout<<fileList[j].path()<<"\n";
+
+    // This will always get executed.
+    if (count != 1) {
+        int interval = beg + count;
+        std::cout << "Found " << count << " files of size " << fileList[beg].size() << "\n";
+        for (int j = beg; j < interval; j++) {
+            std::cout << fileList[j].path() << "\n";
         }
     }
-    std::cout<<"\n\n";
-    //deduper.sortFilesBySize();
-    // for (const auto& file : fileList) {
-    //     std::cout << file.path() << " - " << file.size() << " bytes\n";
-    // }
+
+    std::cout << "\n\n";
+}
+
+
+
+int main(int argc, char* argv[]) {
+    if (argc < 3) {
+        std::cerr << "Error: Not enough arguments.\n";
+        std::cerr << "Expected usage:\n"
+                << "  " << argv[0] << " dedup <directory>    # Deduplicate files\n"
+                << "  " << argv[0] << " img <directory>      # Filter image files\n"
+                << "  " << argv[0] << " vid <directory>      # Filter video files\n";
+
+        return 1;
+    }
+    std::string mode=std::string(argv[1]);
+    if(mode=="dedup"){
+        findExactDuplicates(argv[2]);
+    }
+    else{
+        std::cout<<"Invalid input"<<"\n";
+    }
     return 0;
 }

@@ -30,6 +30,8 @@ public:
   void sortFilesBySize();
 
   void setHash();
+
+  void findExactDuplicates();
   
 private:
   std::vector<FileInfo>& m_list; ///< The list of files being processed.
