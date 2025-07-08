@@ -1,5 +1,6 @@
 #include "FileInfo.hpp"
 #include <system_error>  // for std::error_code
+#include <sys/stat.h>
 
 /**
  * @brief Constructs a FileInfo object from a filesystem path.
@@ -20,6 +21,7 @@ FileInfo::FileInfo(std::filesystem::path path)
  * 
  * @return true if metadata was successfully read, false otherwise.
  */
+
 bool FileInfo::readFileInfo() {
     std::error_code ec;
 
@@ -40,8 +42,18 @@ bool FileInfo::readFileInfo() {
         m_size = 0;
     }
 
+    // Get inode and device info using stat
+    // struct stat statbuf {}; // POSIX stat struct to hold file metadata
+    // if (stat(m_path.c_str(), &statbuf) != 0) {
+    //     return false;
+    // }
+
+    // m_inode = static_cast<std::uintmax_t>(statbuf.st_ino); // store inode number
+    // m_device = static_cast<std::uintmax_t>(statbuf.st_dev); // store device ID
+
     return true;
 }
+
 
 /**
  * @brief Gets the size of the file.
@@ -81,4 +93,36 @@ void FileInfo::set_remove_unique_flag(bool flag){
 
 bool FileInfo::remove_unique_flag() const{
     return m_remove_unique_flag;
+}
+
+// std::uintmax_t FileInfo::inode() const{
+//     return m_inode;
+// }
+// std::uintmax_t FileInfo::device() const{
+//     return m_device;
+// }
+
+int FileInfo::readFirstBytes() {
+  m_somebytes.fill('\0');
+  std::ifstream file(m_path, std::ios::in | std::ios::binary);
+  if (!file.is_open()) return -1;
+
+  file.read(m_somebytes.data(), getBufferSize());
+  return 0;
+}
+
+int FileInfo::readLastBytes() {
+  m_somebytes.fill('\0');
+  std::ifstream file(m_path, std::ios::in | std::ios::binary);
+  if (!file.is_open()) return -1;
+
+  // Get file size
+  file.seekg(0, std::ios::end);
+  std::streamoff filesize = file.tellg();
+
+  std::streamoff offset = std::min<std::streamoff>(filesize, getBufferSize());
+  file.seekg(-offset, std::ios::end);
+
+  file.read(m_somebytes.data(), offset);
+  return 0;
 }

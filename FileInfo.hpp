@@ -1,8 +1,10 @@
 #ifndef FILEINFO_HPP
 #define FILEINFO_HPP
 
+#include <array>
 #include <string>
 #include <filesystem>
+#include <fstream>
 
 /**
  * @class FileInfo
@@ -69,12 +71,39 @@ public:
      */
     bool isDirectory() const;
 
+    // std::uintmax_t inode() const;
+    // std::uintmax_t device() const;
+    
+    int readFirstBytes();
+
+    int readLastBytes();
+
+    std::size_t getBufferSize() const{
+        return m_FixedReadSize;
+    }
+
+    /// get a pointer to the bytes read from the file
+    const char* getbyteptr() const { return m_somebytes.data(); }
+
+    void setBlake3(const std::string &hash){
+        m_blake3_val=hash;
+    }
+    const std::string getblake3() const{
+        return m_blake3_val;
+    }
+
 private:
     std::filesystem::path m_path;     ///< Full file or directory path.
     filesizetype m_size = 0;          ///< File size in bytes (0 if not a regular file).
     bool m_is_regular = false;        ///< True if path is a regular file.
     bool m_is_directory = false;      ///< True if path is a directory.
     bool m_remove_unique_flag = false;        ///< True if file should be removed during cleanup.
+    // std::uintmax_t m_inode = 0;
+    // std::uintmax_t m_device = 0;
+    
+    static constexpr std::size_t m_FixedReadSize=4096;
+    std::array<char, m_FixedReadSize> m_somebytes;
+    std::string m_blake3_val;
 
 };
 

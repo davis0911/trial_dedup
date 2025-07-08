@@ -24,6 +24,12 @@ public:
    * @return Number of files removed.
    */
   std::size_t removeUniqueSizes();
+  std::size_t removeUniqueBuffer();
+  std::size_t removeUniqueHashes();
+
+  void sortFilesBySize();
+
+  void setHash();
   
 private:
   std::vector<FileInfo>& m_list; ///< The list of files being processed.
@@ -34,6 +40,7 @@ private:
    * @return Number of items removed.
    */
   std::size_t cleanup();
+  //int sortOnDeviceAndInode();
 };
 
 #endif // UTILITY_HH
