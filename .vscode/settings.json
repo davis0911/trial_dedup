@@ -59,6 +59,16 @@
         "thread": "cpp",
         "cinttypes": "cpp",
         "typeinfo": "cpp",
-        "variant": "cpp"
+        "variant": "cpp",
+        "bitset": "cpp",
+        "charconv": "cpp",
+        "chrono": "cpp",
+        "list": "cpp",
+        "map": "cpp",
+        "set": "cpp",
+        "format": "cpp",
+        "span": "cpp",
+        "cfenv": "cpp",
+        "future": "cpp"
     }
 }

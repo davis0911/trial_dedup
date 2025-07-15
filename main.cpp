@@ -11,34 +11,48 @@
 
 std::vector<FileInfo> fileList;
 
+std::string beautify(uintmax_t size) {
+    std::ostringstream oss;
+    oss << std::fixed << std::setprecision(2);
+    
+    if (size >= 1073741824) {
+        oss << (double)size / 1073741824 << " GB";
+    } else if (size >= 1048576) {
+        oss << (double)size / 1048576 << " MB";
+    } else if (size >= 1024) {
+        oss << (double)size / 1024 << " KB";
+    } else {
+        oss << size << " B";
+    }
+
+    return oss.str();
+}
+
 /**
  * @brief Callback function to process a file or directory during traversal.
  *
  * This function checks if the given file should be skipped based on its path.
  * If it is not skipped and is a regular file of at least 1KB, it is added to the global file list.
  *
- * @param path The directory path being scanned.
- * @param name The name of the file.
+ * @param path The full path being scanned.
  * @param depth The depth of the traversal.
  * @return Always returns 0.
  */
-int report(const std::string& path, const std::string& name, int depth) {
-    std::filesystem::path fullPath = std::filesystem::path(path) / name;
-
+int report(const std::filesystem::path& path_name, int depth) {
     /// Set of directory names to skip during traversal.
     const std::unordered_set<std::string> skipDuplication = {
         ".git", ".config", ".cache", ".vscode", ".local", ".venv", ".mozilla", ".thunderbird"
     };
 
-    for (const auto& part : fullPath) {
+    for (const auto& part : path_name) {
         if (skipDuplication.contains(part.string())) {
             return 0;
         }
     }
 
-    FileInfo fi(fullPath);
+    FileInfo fi(path_name);
 
-    if (fi.readFileInfo() && fi.isRegularFile() && fi.size() >= 1024) {
+    if (fi.readFileSize() && fi.getSize() >= 1024) {
         fileList.push_back(fi);
     }
 
@@ -65,7 +79,19 @@ void findExactDuplicates(char* filename) {
     //The false here indicates that the program should not follow symlinks.
     FileTree walker(false);
     walker.setCallback(&report);
-    walker.walk(dir.string());
+    int status=walker.walk(dir.string());
+
+    if(status==1){
+        return ;
+    }
+    else if(status==-1){
+        return ;
+    }
+
+    if(fileList.size()==0){
+        std::cout<<"File List is empty."<<"\n";
+        return;
+    }
 
     std::cout << "Total files before filtering: " << fileList.size() << "\n";
 
@@ -79,6 +105,10 @@ void findExactDuplicates(char* filename) {
     std::cout << "Removed " << removed << " files with unique sizes.\n";
     std::cout << "Files remaining: " << fileList.size() << "\n\n";
 
+    if(fileList.size()==0){
+        return ;
+    }
+
     //2.
     // This serves as a quick content-based pre-filter to eliminate files that differ early,
     // reducing the workload for full hashing.
@@ -91,16 +121,26 @@ void findExactDuplicates(char* filename) {
     std::cout << "Removed " << removed << " files with unique first bytes.\n";
     std::cout << "Files remaining " << fileList.size() << "\n\n";
 
+    if(fileList.size()==0){
+        return ;
+    }
+
     //3.
     //The setHash function is used to hash the contents of the entire file and store it in the form 
     //of a string in the member-variable of the class FileInfo called m_blake3_val.
-    deduper.setHash();
+    for(auto &file: fileList){
+        file.setBlake3();
+    }
 
     //removeUniqueHashes removes all the files with unique hashes from the fileList and returns the number
     //of files which it removed.
     removed = deduper.removeUniqueHashes();
     std::cout << "Removed " << removed << " files with unique hashes\n";
     std::cout << "Files remaining " << fileList.size() << "\n\n";
+
+    if(fileList.size()==0){
+        return ;
+    }
 
     //This is used to sort the FileList based on the size of the files.
     deduper.sortFilesBySize();
@@ -109,13 +149,13 @@ void findExactDuplicates(char* filename) {
     int count = 1;
     int beg = 0;
     for (int i = 1; i < fileList.size(); ++i) {
-        if (fileList[i].size() == fileList[i - 1].size()) {
+        if (fileList[i].getSize() == fileList[i - 1].getSize()) {
             count++;
         } else {
             int interval = beg + count;
-            std::cout << "Found " << count << " files of size " << fileList[beg].size() << "\n";
+            std::cout << "Found " << count << " files of size " << beautify(fileList[beg].getSize()) << "\n";
             for (int j = beg; j < interval; j++) {
-                std::cout << fileList[j].path() << "\n";
+                std::cout << fileList[j].getPath() << "\n";
             }
             std::cout << "\n\n";
             beg = i;
@@ -126,9 +166,9 @@ void findExactDuplicates(char* filename) {
     // This will always get executed.
     if (count != 1) {
         int interval = beg + count;
-        std::cout << "Found " << count << " files of size " << fileList[beg].size() << "\n";
+        std::cout << "Found " << count << " files of size " << beautify(fileList[beg].getSize()) << "\n";
         for (int j = beg; j < interval; j++) {
-            std::cout << fileList[j].path() << "\n";
+            std::cout << fileList[j].getPath() << "\n";
         }
     }
 

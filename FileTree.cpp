@@ -3,34 +3,20 @@
 #include <string>
 #include "FileTree.hpp"
 
-namespace {
-/// @brief Maximum allowed depth for recursive directory traversal
 constexpr int MAX_RECURSION_DEPTH = 50;
 
 namespace fs = std::filesystem;
-}
 
-/**
- * @brief Recursively traverses a directory, reporting regular files and symlinks.
- * 
- * Uses `std::filesystem` to iterate through the directory structure. For each entry,
- * it checks if it's a regular file, symbolic link, or directory. Invokes a callback
- * for symlinks and regular files, and continues traversal into subdirectories.
- * 
- * @param dir The directory path to start traversal from.
- * @param recursionLevel The current depth in the recursive traversal.
- * @return int 
- *         - -1 if maximum recursion depth is exceeded
- *         - 1 if the given path is not a directory
- *         - 2 if the directory was processed successfully
- */
 int FileTree::walk(const std::string& dir, int recursionLevel) {
     if (recursionLevel >= MAX_RECURSION_DEPTH) {
         std::cerr << "Error: Maximum recursion depth exceeded\n";
         return -1;
     }
-
+    //It converts the string dir to std::filesystem::path on its own.
     fs::path dirPath(dir);
+
+    //This is used in order to avoid writing try catch blocks(no exceptions).
+    //It's common to use it with filesystem functions.
     std::error_code ec;
 
     if (!fs::is_directory(dirPath, ec)) {
@@ -58,8 +44,7 @@ int FileTree::walk(const std::string& dir, int recursionLevel) {
         }
 
         if (fs::is_symlink(stat)) {
-            if (m_followsymlinks && m_callback) {
-                m_callback(dirPath.string(), name, recursionLevel);
+            if (m_followsymlinks) {
                 if (fs::is_directory(path, ec)) {
                     walk(path.string(), recursionLevel + 1);
                 }
@@ -68,7 +53,7 @@ int FileTree::walk(const std::string& dir, int recursionLevel) {
             walk(path.string(), recursionLevel + 1);
         } else if (fs::is_regular_file(stat)) {
             if (m_callback) {
-                m_callback(dirPath.string(), name, recursionLevel);
+                m_callback(path, recursionLevel);
             }
         }
     }
@@ -76,30 +61,24 @@ int FileTree::walk(const std::string& dir, int recursionLevel) {
     return 2;
 }
 
-/**
- * @brief Handles a file or path that could not be opened as a directory.
- * 
- * If the path is a symlink or regular file, and a callback is set, it is reported.
- * If it is a directory (unexpected), logs an error. Unknown types are ignored.
- * 
- * @param possibleFile The file path that failed to open as a directory.
- * @param recursionLevel The current recursion depth at which this path was encountered.
- * @return int 
- *         - -1 if file info couldn't be retrieved
- *         - -2 if the file is unexpectedly a directory
- *         - 0 if it was a valid symlink or regular file
- */
 int FileTree::handlePossibleFile(const fs::path& possibleFile, int recursionLevel) {
     std::error_code ec;
 
     //File doesn't exist in the first place. Wrong name passed.
-    if (!fs::exists(possibleFile, ec)) {
+    if(!fs::exists(possibleFile, ec)){
+        std::cerr<<"Arguement passed doesn't exist"<<"\n";
         return -1;
     }
 
-    const std::string path = possibleFile.parent_path().string() + "/";
+    // The use of / ensures that based on the system(windows or linux) the correct seperator is added.(\\ or /).
+    //Operator overloading of / in std::filesystem.
+    const std::string path=(possibleFile.parent_path() / "").string();
     const std::string filename = possibleFile.filename().string();
 
+    //The two available functions were
+    //fs::status(dirPath) and fs::symlink_status(dirPath)
+    //status() If symlink is passed then status follows the symlink and gives status of the target.
+    //symlink_status() If symlink is passed then it doesn't follow it. Marks the symlink status of the file as true.
     fs::file_status stat = fs::symlink_status(possibleFile, ec);
     if (ec) {
         std::cerr << "Error getting status for file: " << possibleFile << ": " << ec.message() << "\n";
@@ -107,30 +86,18 @@ int FileTree::handlePossibleFile(const fs::path& possibleFile, int recursionLeve
     }
 
     if (fs::is_symlink(stat)) {
-        if (m_followsymlinks && m_callback) {
-            //m_callback(path, filename, recursionLevel);
-            if (fs::is_directory(possibleFile, ec)) {
+        //In C++, private member functions can freely access private member variables of the same class.
+        //That is why m_followsymlinks can be directly accessed here. 
+        if (m_followsymlinks) {
+            if (fs::is_directory(stat)) {
                 walk(possibleFile.string(), recursionLevel + 1);
             }
         }
         return 0;
     }
 
-    /**
-     * This is just a safety net because there could be a case
-     * where file states change. Paul Dreik included this part in
-     * his code. Would be interesting to see if this every happens.
-     */
-    if (fs::is_directory(stat)) {
-        std::cerr << "Dirlist::handlePossibleFile: Unexpected directory.\n"
-                  << "File: \"" << possibleFile.string() << "\"\n";
-        return -2;
-    }
-
     if (fs::is_regular_file(stat)) {
-        if (m_callback) {
-            m_callback(path, filename, recursionLevel);
-        }
+        std::cout<<"You passed a file as the arguement. No duplicates to check"<<"\n";
         return 0;
     }
 

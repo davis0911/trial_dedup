@@ -5,6 +5,7 @@
 #include <string>
 #include <filesystem>
 #include <fstream>
+#include "Checksum.hpp"
 
 /**
  * @class FileInfo
@@ -15,96 +16,91 @@
  */
 class FileInfo {
 public:
-    /**
-     * @brief Type alias for file size type.
-     * Uses `std::uintmax_t`, which matches `std::filesystem::file_size()` return type.
-     */
+    
     using filesizetype = std::uintmax_t;
 
     /**
      * @brief Constructs a FileInfo object with the given path.
-     * @param path Full file or directory path.
+     * @param path Filesystem path of the file.
      */
-    explicit FileInfo(std::filesystem::path path);
+    explicit FileInfo(const std::filesystem::path& path)
+        :m_path(path)
+        {}
 
     /**
-     * @brief Reads file metadata using `std::filesystem::symlink_status()` and `file_size()`.
-     * 
-     * Determines if the path points to a regular file or directory, and sets internal flags and size.
-     * @return true if metadata was successfully read, false otherwise (e.g., permission denied).
+     * @brief Reads the size of the file and stores it in m_size.
+     * @return true if successful, false otherwise.
      */
-    bool readFileInfo();
+    bool readFileSize();
 
     /**
      * @brief Sets the delete flag for this file.
      * @param flag true to mark for removal, false otherwise.
      */
-    void set_remove_unique_flag(bool flag);
+    void setRemoveUniqueFlag(bool flag){m_remove_unique_flag=flag;}
 
     /**
      * @brief Checks if the file is marked for removal.
      * @return true if marked, false otherwise.
      */
-    bool remove_unique_flag() const;
+    bool checkRemoveUniqueFlag() const{return m_remove_unique_flag;}
 
     /**
      * @brief Returns the file size in bytes.
      * @return File size as `filesizetype`.
      */
-    filesizetype size() const;
+    filesizetype getSize() const {return m_size;}
 
     /**
      * @brief Returns the original path of the file.
      * @return Path object referencing the full file path.
      */
-    const std::filesystem::path& path() const;
-
-    /**
-     * @brief Checks whether the file is a regular file.
-     * @return true if it's a regular file, false otherwise.
-     */
-    bool isRegularFile() const;
-
-    /**
-     * @brief Checks whether the path points to a directory.
-     * @return true if it's a directory, false otherwise.
-     */
-    bool isDirectory() const;
-
-    // std::uintmax_t inode() const;
-    // std::uintmax_t device() const;
+    const std::filesystem::path& getPath() const {return m_path;}
     
+    /**
+     * @brief Reads a fixed amount of first bytes from the file and stores them in a buffer.
+     * @return 0 if successful, -1 if the file couldn't be opened.
+     */
     int readFirstBytes();
 
-    int readLastBytes();
-
-    std::size_t getBufferSize() const{
-        return m_FixedReadSize;
-    }
+    /**
+     * @brief Returns the fixed number of bytes read from the file.
+     * @return Buffer size in bytes.
+     */
+    std::size_t getBufferSize() const{return m_FixedReadSize;}
 
     /// get a pointer to the bytes read from the file
-    const char* getbyteptr() const { return m_somebytes.data(); }
+    const char* getbyteptr() const {return m_somebytes.data();}
 
-    void setBlake3(const std::string &hash){
-        m_blake3_val=hash;
+    /**
+     * @brief Computes and sets the BLAKE3 hash for this file.
+     * 
+     * This function computes the BLAKE3 hash of the file located at the path 
+     * stored in this FileInfo object and assigns the result to m_blake3_val.
+     */
+    void setBlake3() {
+        m_blake3_val = Checksum::compute(m_path.string());
     }
-    const std::string getblake3() const{
-        return m_blake3_val;
-    }
+
+    
+    /**
+     * @brief Gets the BLAKE3 hash string for this file.
+     * @return A string representing the BLAKE3 hash.
+     */
+    const std::string getBlake3() const{return m_blake3_val;}
+
 
 private:
-    std::filesystem::path m_path;     ///< Full file or directory path.
-    filesizetype m_size = 0;          ///< File size in bytes (0 if not a regular file).
-    bool m_is_regular = false;        ///< True if path is a regular file.
-    bool m_is_directory = false;      ///< True if path is a directory.
-    bool m_remove_unique_flag = false;        ///< True if file should be removed during cleanup.
-    // std::uintmax_t m_inode = 0;
-    // std::uintmax_t m_device = 0;
+    std::filesystem::path m_path;               // Full file or directory path.
+    filesizetype m_size = 0;                    // File size in bytes.(Setting 0 as default.)
+    bool m_remove_unique_flag = false;          // True if file should be removed during cleanup.
     
+    //constexpr within class must be static.
+    //For it to be shared across all instances as a single copy in memory
+    //it must be made static.
     static constexpr std::size_t m_FixedReadSize=4096;
     std::array<char, m_FixedReadSize> m_somebytes;
     std::string m_blake3_val;
-
 };
 
 #endif // FILEINFO_HPP

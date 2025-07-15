@@ -3,126 +3,34 @@
 #include <sys/stat.h>
 
 /**
- * @brief Constructs a FileInfo object from a filesystem path.
- * @param path Full path to a file or directory.
- */
-FileInfo::FileInfo(std::filesystem::path path)
-    // This is called Pass-by-value and move assignment. This is the best way of doing it here. Pass by reference is not efficient 
-    //here and can cause memory leaks.
-    : m_path(std::move(path)) 
-    {}
-
-/**
- * @brief Reads metadata about the file at the stored path.
+ * @brief Reads the size of the file at the stored path.
  *
- * Uses `symlink_status()` to check file type (regular file, directory),
- * and `file_size()` to determine the size if it's a regular file.
- * Errors such as permission denied are handled via `std::error_code`.
- * 
- * @return true if metadata was successfully read, false otherwise.
+ * This function uses std::filesystem to read the size of the file pointed to by `m_path`.
+ * It stores the result in `m_size`. If an error occurs during size retrieval,
+ * the function returns false.
+ *
+ * @return true if the file size was read successfully, false otherwise.
  */
-
-bool FileInfo::readFileInfo() {
+bool FileInfo::readFileSize() {
     std::error_code ec;
-
-    // Get file type information without following symlinks
-    //The datatype is file_status.
-    auto status = std::filesystem::symlink_status(m_path, ec);
+    m_size = std::filesystem::file_size(m_path, ec);
     if (ec) return false;
-
-    // Set file type flags
-    m_is_regular = std::filesystem::is_regular_file(status);
-    m_is_directory = std::filesystem::is_directory(status);
-
-    // If it's a regular file, get its size
-    if (m_is_regular) {
-        m_size = std::filesystem::file_size(m_path, ec);
-        if (ec) return false;
-    } else {
-        m_size = 0;
-    }
-
-    // Get inode and device info using stat
-    // struct stat statbuf {}; // POSIX stat struct to hold file metadata
-    // if (stat(m_path.c_str(), &statbuf) != 0) {
-    //     return false;
-    // }
-
-    // m_inode = static_cast<std::uintmax_t>(statbuf.st_ino); // store inode number
-    // m_device = static_cast<std::uintmax_t>(statbuf.st_dev); // store device ID
-
     return true;
 }
 
-
 /**
- * @brief Gets the size of the file.
- * @return File size in bytes, or 0 if not a regular file.
+ * @brief Reads the first few bytes of the file and stores them in `m_somebytes`.
+ *
+ * This function opens the file in binary mode and reads up to fixed size of bytes returned by getBufferSize().
+ * into the internal buffer `m_somebytes`. The buffer is initialized with null characters.
+ *
+ * @return 0 if bytes were successfully read, -1 if the file could not be opened.
  */
-FileInfo::filesizetype FileInfo::size() const{
-    return m_size;
-}
-
-/**
- * @brief Gets the original filesystem path of the file.
- * @return Reference to the stored path.
- */
-const std::filesystem::path& FileInfo::path() const{
-    return m_path;
-}
-
-/**
- * @brief Checks if the file is a regular file.
- * @return true if regular, false otherwise.
- */
-bool FileInfo::isRegularFile() const{
-    return m_is_regular;
-}
-
-/**
- * @brief Checks if the file is a directory.
- * @return true if directory, false otherwise.
- */
-bool FileInfo::isDirectory() const{
-    return m_is_directory;
-}
-
-void FileInfo::set_remove_unique_flag(bool flag){
-    m_remove_unique_flag = flag;
-}
-
-bool FileInfo::remove_unique_flag() const{
-    return m_remove_unique_flag;
-}
-
-// std::uintmax_t FileInfo::inode() const{
-//     return m_inode;
-// }
-// std::uintmax_t FileInfo::device() const{
-//     return m_device;
-// }
-
 int FileInfo::readFirstBytes() {
   m_somebytes.fill('\0');
   std::ifstream file(m_path, std::ios::in | std::ios::binary);
   if (!file.is_open()) return -1;
 
   file.read(m_somebytes.data(), getBufferSize());
-  return 0;
-}
-
-int FileInfo::readLastBytes() {
-  m_somebytes.fill('\0');
-  std::ifstream file(m_path, std::ios::in | std::ios::binary);
-  if (!file.is_open()) return -1;
-
-  // Get file size
-  file.seekg(0, std::ios::end);
-  std::streamoff filesize = file.tellg();
-
-  std::streamoff offset = std::min<std::streamoff>(filesize, getBufferSize());
-  file.seekg(-offset, std::ios::end);
-
-  file.read(m_somebytes.data(), offset);
   return 0;
 }
