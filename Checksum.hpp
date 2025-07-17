@@ -1,7 +1,7 @@
 #ifndef CHECKSUM_HPP
 #define CHECKSUM_HPP
 #include <string>
-
+#include <cstdint>
 class Checksum {
 public:
     /**
@@ -21,6 +21,11 @@ public:
      */
 
     static std::string compute(const std::string& filePath);
+
+    static uint64_t computeImagePHash64(const std::string& imgPath);
+
+    int hammingDistance(uint64_t, uint64_t);
+
 };
 
 #endif 

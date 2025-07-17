@@ -82,7 +82,13 @@ public:
         m_blake3_val = Checksum::compute(m_path.string());
     }
 
-    
+    void setImgHash(){
+        m_phash_val=Checksum::computeImagePHash64(m_path.string());
+    }
+
+    uint64_t getImgHash() const{
+        return m_phash_val;
+    }
     /**
      * @brief Gets the BLAKE3 hash string for this file.
      * @return A string representing the BLAKE3 hash.
@@ -101,6 +107,7 @@ private:
     static constexpr std::size_t m_FixedReadSize=4096;
     std::array<char, m_FixedReadSize> m_somebytes;
     std::string m_blake3_val;
+    uint64_t m_phash_val=0;
 };
 
 #endif // FILEINFO_HPP

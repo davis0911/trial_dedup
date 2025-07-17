@@ -53,7 +53,7 @@ int FileTree::walk(const std::string& dir, int recursionLevel) {
             walk(path.string(), recursionLevel + 1);
         } else if (fs::is_regular_file(stat)) {
             if (m_callback) {
-                m_callback(path, recursionLevel);
+                m_callback(path);
             }
         }
     }

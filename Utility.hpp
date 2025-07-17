@@ -61,6 +61,10 @@ public:
      * 
      */
     void sortFilesBySize();
+    
+    static void findExactDuplicates(char* filename);
+    
+    static void similarImages(char* filename);
 
 private:
     std::vector<FileInfo>& m_list;

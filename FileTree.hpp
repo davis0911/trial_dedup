@@ -29,9 +29,8 @@ public:
    * 
    * The callback receives:
    * - the full directory path
-   * - the current recursion depth
    */
-  using ReportFcnType = int (*)(const std::filesystem::path&, int);
+  using ReportFcnType = int (*)(const std::filesystem::path&);
 
   /**
    * @brief Set the callback function to be invoked for each discovered file.
