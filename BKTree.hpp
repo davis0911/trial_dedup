@@ -25,7 +25,8 @@ class BKTree{
     private:
         std::unique_ptr<BKTreeNode> m_root=nullptr;
     public:
-        void insert(const FileInfo &f);
+        void insert(const FileInfo& f);
+        void insertVideoHashes(const FileInfo& f);
         void findSimilar(uint64_t targetHash, int maxDistance,
                         std::vector<FileInfo>& result,
                         std::set<std::filesystem::path>& visited,

@@ -9,9 +9,9 @@
 
 /**
  * @class FileInfo
- * @brief Stores metadata about a file using modern C++17 filesystem API.
+ * @brief Stores metadata about a file using std::filesystem.
  * 
- * This class encapsulates file attributes such as size, path, and type (regular file or directory),
+ * This class encapsulates file attributes such as size, path, etc
  * using the `std::filesystem` library for efficient and portable file information gathering.
  */
 class FileInfo {
@@ -69,7 +69,9 @@ public:
      */
     std::size_t getBufferSize() const{return m_FixedReadSize;}
 
+    //I use this in memcmp in utility.cpp.
     /// get a pointer to the bytes read from the file
+    //The .data function returns a pointer to m_somebytes.
     const char* getbyteptr() const {return m_somebytes.data();}
 
     /**
@@ -88,6 +90,20 @@ public:
 
     uint64_t getImgHash() const{
         return m_phash_val;
+    }
+
+    void setDuration(int duration){
+        m_duration=duration;
+    }
+    int getDuration() const{
+        return m_duration;
+    }
+    void setVideoHashes();//{
+    //     m_video_hashes=Checksum::setVideoHashes(m_path.string());
+    // }
+
+    const std::vector<uint64_t>& getVideoHashVector() const{
+        return m_video_hashes;
     }
     /**
      * @brief Gets the BLAKE3 hash string for this file.
@@ -108,6 +124,8 @@ private:
     std::array<char, m_FixedReadSize> m_somebytes;
     std::string m_blake3_val;
     uint64_t m_phash_val=0;
+    int m_duration=0;
+    std::vector<uint64_t> m_video_hashes;
 };
 
 #endif // FILEINFO_HPP

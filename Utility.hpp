@@ -61,10 +61,16 @@ public:
      * 
      */
     void sortFilesBySize();
+
+    std::size_t removeUniqueDuration();
+
+    std::size_t removeMarkedFiles();
     
     static void findExactDuplicates(char* filename);
     
     static void similarImages(char* filename);
+
+    static void similarVidoes(char *filename);
 
 private:
     std::vector<FileInfo>& m_list;

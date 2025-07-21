@@ -2,6 +2,7 @@
 #define CHECKSUM_HPP
 #include <string>
 #include <cstdint>
+#include <opencv2/opencv.hpp> 
 class Checksum {
 public:
     /**
@@ -24,7 +25,9 @@ public:
 
     static uint64_t computeImagePHash64(const std::string& imgPath);
 
-    int hammingDistance(uint64_t, uint64_t);
+    static uint64_t phashFromMat(cv::Mat& img);
+
+    //static std::vector<uint64_t> setVideoHashes(const std::string& filePath);
 
 };
 

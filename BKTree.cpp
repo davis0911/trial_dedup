@@ -8,6 +8,39 @@ int hammingDistance(uint64_t a, uint64_t b){
     return __builtin_popcountll(a^b);
 }
 
+int hammingDistance(const std::vector<uint64_t>& a, const std::vector<uint64_t>& b) {
+    if (a.empty() || b.empty()) {
+        std::cerr << "Warning: One or both video hash vectors are empty. Cannot compute distance.\n";
+        return 1000; 
+    }
+
+    int total = 0;
+    int len=std::min(a.size(), b.size());
+    for (int i = 0; i < len; ++i) {
+        total += __builtin_popcountll(a[i] ^ b[i]);
+    }
+    return total/len;
+}
+
+void BKTree::insertVideoHashes(const FileInfo &f){
+    if(!m_root){
+        m_root=std::make_unique<BKTreeNode>(f);
+        return;
+    }
+    //You are going to insert based on the position of the root.
+    //And what content is present in the root node.
+    BKTreeNode *current=m_root.get();
+    
+    int dist=hammingDistance(current->m_data.getVideoHashVector(), f.getVideoHashVector());
+    while(current->children.count(dist)){
+        //Ownership still belongs to the unique_ptr
+        //current is just an observer.
+        current=current->children[dist].get();
+        dist=hammingDistance(f.getVideoHashVector(), current->m_data.getVideoHashVector());
+    }
+    current->children[dist]=std::make_unique<BKTreeNode>(f);
+
+}
 
 void BKTree::insert(const FileInfo &f){
     if(!m_root){
