@@ -27,7 +27,7 @@ public:
 
     static uint64_t phashFromMat(cv::Mat& img);
 
-    //static std::vector<uint64_t> setVideoHashes(const std::string& filePath);
+    static std::vector<uint64_t> setVideoHashes(const std::string& filePath);
 
 };
 

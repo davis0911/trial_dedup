@@ -28,6 +28,18 @@ std::string beautify(uintmax_t size) {
     return oss.str();
 }
 
+bool is_in_skipped_dir(const std::filesystem::path& path) {
+    //static ensures that the set is initialized only once. The first time the function is called.
+    //Hence every time the function is called reinitialization doesn't take place. This makes it faster.
+    static const std::unordered_set<std::string> skipDuplication = {
+        ".git", ".config", ".cache", ".vscode", ".local", ".venv", ".mozilla", ".thunderbird"
+    };
+    for (const auto& part : path) {
+        if (skipDuplication.count(part.string())) return true;
+    }
+    return false;
+}
+
 /**
  * @brief Callback function to process a file or directory during traversal.
  *
@@ -35,19 +47,11 @@ std::string beautify(uintmax_t size) {
  * If it is not skipped and is a regular file of at least 1KB, it is added to the global file list.
  *
  * @param path The full path being scanned.
- * @param depth The depth of the traversal.
- * @return Always returns 0.
+ * @return Return -1 if file is part of skipped directory and 0 if given file is successfully added to fileList.
  */
 int dedup_report(const std::filesystem::path& path_name) {
-    /// Set of directory names to skip during traversal.
-    const std::unordered_set<std::string> skipDuplication = {
-        ".git", ".config", ".cache", ".vscode", ".local", ".venv", ".mozilla", ".thunderbird"
-    };
-
-    for (const auto& part : path_name) {
-        if (skipDuplication.find(part.string())!=skipDuplication.end()) {
-            return -1;
-        }
+    if(is_in_skipped_dir(path_name)){
+        return -1;
     }
 
     FileInfo fi(path_name);
@@ -70,22 +74,18 @@ int dedup_report(const std::filesystem::path& path_name) {
  * - Grouping and printing remaining files by identical sizes
  *
  * @param filename Path to the directory in which to search for duplicate files.
+ * @param follow_symlinks Whether to follow symlinks or not.
  */
-void Manager::findExactDuplicates(char* filename) {
+void Manager::findExactDuplicates(char* filename, bool follow_symlinks) {
 
     std::filesystem::path dir(filename);
     std::cout << "Searching for files in directory: " << dir << "\n";
 
-    // This function is used to walk the specified directory.
-    //The false here indicates that the program should not follow symlinks.
-    FileTree walker(false);
+    FileTree walker(follow_symlinks);
     walker.setCallback(&dedup_report);
     int status=walker.walk(dir.string());
 
-    if(status==1){
-        return ;
-    }
-    else if(status==-1){
+    if(status==-1 || status==0){
         return ;
     }
 
@@ -114,7 +114,13 @@ void Manager::findExactDuplicates(char* filename) {
     // This serves as a quick content-based pre-filter to eliminate files that differ early,
     // reducing the workload for full hashing.
     for (auto& file : fileList) {
-        file.readFirstBytes();
+        if(file.readFirstBytes()!=0){
+            file.setRemoveUniqueFlag(true);
+        }
+    }
+    removed=deduper.removeMarkedFiles();
+    if(removed!=0){
+        std::cout<<"Removed "<<removed<<" files which couldn't be opened\n";
     }
     //removeUniqueBuffer removes all the files with unique firstbytes(default buffer size set to 4kB)
     //and returns the total number of such removed files.
@@ -131,6 +137,13 @@ void Manager::findExactDuplicates(char* filename) {
     //of a string in the member-variable of the class FileInfo called m_blake3_val.
     for(auto &file: fileList){
         file.setBlake3();
+        if(file.getBlake3().empty()){
+            file.setRemoveUniqueFlag(true);
+        }
+    }
+    removed=deduper.removeMarkedFiles();
+    if(removed!=0){
+        std::cout<<"Removed "<<removed<<" files which couldn't be opened\n";
     }
 
     //removeUniqueHashes removes all the files with unique hashes from the fileList and returns the number
@@ -178,30 +191,21 @@ void Manager::findExactDuplicates(char* filename) {
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 //For detecting similar images.
+
 bool is_image_file(const std::filesystem::path& path) {
+    //static ensures that the set is initialized only once. The first time the function is called.
+    //Hence every time the function is called reinitialization doesn't take place. This makes it faster.
     static const std::unordered_set<std::string> image_extensions = {
         ".jpg", ".jpeg", ".png", ".bmp", ".tiff", ".tif", ".gif", ".webp"
     };
 
     std::string ext = path.extension().string();
+    //std::transform(InputBegin, InputEnd, OutputBegin, UnaryFunction);
     std::transform(ext.begin(), ext.end(), ext.begin(), ::tolower);
     return image_extensions.count(ext) > 0;
 }
 
-bool is_in_skipped_dir(const std::filesystem::path& path) {
-    static const std::unordered_set<std::string> skipDuplication = {
-        ".git", ".config", ".cache", ".vscode", ".local", ".venv", ".mozilla", ".thunderbird"
-    };
-    for (const auto& part : path) {
-        if (skipDuplication.count(part.string())) return true;
-    }
-    return false;
-}
-
 int img_report(const std::filesystem::path& path_name) {
-    if (!std::filesystem::is_regular_file(path_name)) {
-        return -1;
-    }
 
     if (is_in_skipped_dir(path_name)) {
         return -1;
@@ -248,16 +252,19 @@ void printSimilarGroups(const std::vector<FileInfo>& fileList, const BKTree& tre
             }
             std::cout<<"\n";
         }
+        else{
+            visited.insert(file.getPath());
+        }
     }
 }
 
-void Manager::findSimilarImages(char* filename){
+void Manager::findSimilarImages(char* filename, bool follow_symlinks){
     std::filesystem::path dir(filename);
-    std::cout << "Searching for files in directory: " << dir << "\n";
+    std::cout << "Searching for image files in directory: " << dir << "\n";
 
     // This function is used to walk the specified directory.
     //The false here indicates that the program should not follow symlinks.
-    FileTree walker(false);
+    FileTree walker(follow_symlinks);
     walker.setCallback(&img_report);
     int status=walker.walk(dir.string());
 
@@ -274,37 +281,50 @@ void Manager::findSimilarImages(char* filename){
     }
     for(auto &it: fileList){
         it.setImgHash();
+        if(it.getImgHash()==0){
+            it.setRemoveUniqueFlag(true);
+        }
     }
+    Utility deduper(fileList);
+    std::size_t removed=deduper.removeMarkedFiles();
+    if(removed){
+        std::cout<<"Removed "<<removed<<" images which could not be opened for hashing.\n";
+    }
+    std::cout<<"Total images to be processed: "<<fileList.size()<<"\n";
+
     BKTree tree;
     for(auto &file: fileList){
         tree.insert(file);
     }
     int ifvideo=0;
     printSimilarGroups(fileList, tree, ifvideo);
+    std::cout<<"Finished processing similar images\n";
 }
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 //For finding different vidoes which differ only in terms of quality.
 
-int vid_report(const std::filesystem::path& path_name) {
-    const std::unordered_set<std::string> skipDuplication = {
-        ".git", ".config", ".cache", ".vscode", ".local", ".venv", ".mozilla", ".thunderbird"
-    };
-
-    for (const auto& part : path_name) {
-        if (skipDuplication.find(part.string())!=skipDuplication.end()) {
-            return -1;
-        }
-    }
-
+bool is_video_file(const std::filesystem::path& path) {
+    //static ensures that the set is initialized only once. The first time the function is called.
+    //Hence every time the function is called reinitialization doesn't take place. This makes it faster.
     static const std::unordered_set<std::string> videoExtensions = {
         ".mp4", ".mkv", ".avi", ".mov", ".flv", ".wmv", ".webm"
     };
 
-    if (videoExtensions.count(path_name.extension().string()) == 0) {
-        return -1; // Skip non-video files
+    std::string ext = path.extension().string();
+    //std::transform(InputBegin, InputEnd, OutputBegin, UnaryFunction);
+    std::transform(ext.begin(), ext.end(), ext.begin(), ::tolower);
+    return videoExtensions.count(ext) > 0;
+}
+
+int vid_report(const std::filesystem::path& path_name) {
+    if(is_in_skipped_dir(path_name)){
+        return -1;
     }
 
+    if(!is_video_file(path_name)){
+        return -1;
+    }
 
     cv::VideoCapture cap(path_name.string());
     if(!cap.isOpened()){
@@ -329,13 +349,11 @@ bool cmpDurationValFile(const int& a, const FileInfo& b) {
     return a < b.getDuration();
 }
 
-void Manager::findSimilarVideos(char* filename){
+void Manager::findSimilarVideos(char* filename, bool follow_symlinks){
     std::filesystem::path dir(filename);
-    std::cout << "Searching for files in directory: " << dir << "\n";
+    std::cout << "Searching for video files in directory: " << dir << "\n";
 
-    // This function is used to walk the specified directory.
-    //The false here indicates that the program should not follow symlinks.
-    FileTree walker(false);
+    FileTree walker(follow_symlinks);
     walker.setCallback(&vid_report);
     int status=walker.walk(dir.string());
 
@@ -355,11 +373,18 @@ void Manager::findSimilarVideos(char* filename){
 
     for(auto &it: fileList){
         it.setVideoHashes();
+        if(it.getVideoHashVector().size()==0){
+            it.setRemoveUniqueFlag(true);
+        }
     }
     
     Utility deduper(fileList);
-    std::cout<<deduper.removeMarkedFiles()<<" video files couldn't be read\n";
-    std::size_t removed = deduper.removeUniqueDuration();
+    std::size_t removed=deduper.removeMarkedFiles();
+    if(removed){
+        std::cout<<"Removed "<<removed<<" video files which couldn't be hashed\n";
+    }
+
+    removed = deduper.removeUniqueDuration();//This sorts it accoring to durtion. This is why we can call upper bound below.
     std::cout << "Removed " << removed << " files with unique duration.\n";
     std::cout << "Files remaining: " << fileList.size() << "\n\n";
 

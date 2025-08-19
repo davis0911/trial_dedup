@@ -17,8 +17,10 @@
 
 std::string Checksum::compute(const std::string& filePath) {
     std::ifstream file(filePath, std::ios::binary); // Open file in binary mode
-    if (!file)
-        throw std::runtime_error("Failed to open file: " + filePath);
+    if (!file){
+        std::cerr<<"Failed to open file "<<filePath<<". Removed it from the hashing process\n";
+        return "";
+    }
 
     // Initialize the BLAKE3 hasher context
     blake3_hasher hasher;
@@ -53,21 +55,29 @@ std::string Checksum::compute(const std::string& filePath) {
 uint64_t Checksum::computeImagePHash64(const std::string& imagePath) {
     // Load image in grayscale (works for color images too)
     //Each value in tha matrix is an unsigned 8bit number(0-255).
+    //The datatype of each pixel is uchar.
+    //0-black 255-white.
     cv::Mat img = cv::imread(imagePath, cv::IMREAD_GRAYSCALE);
     if (img.empty()) {
-        throw std::runtime_error("Failed to load image: " + imagePath);
+        std::cerr<<"Failed to load image: "<<imagePath<<"\n";
+        return 0;
     }
 
     // Resize to 32x32 for DCT
+    //The resultant matrix has type CV_8UC1
+    //8bit unsigned char with 1 channel(grayscale).
     cv::resize(img, img, cv::Size(32, 32));
-    //Converting all the values from (0-255) from unsigned int to float.
+
+    //Converting all the values from (0-255) from unsigned char to float.
+    //For accuracy in dct.
     img.convertTo(img, CV_32F);
 
     // Apply Discrete Cosine Transform
+    // DCT transforms the image from the spatial domain (pixel intensities) to the frequency domain.
     cv::Mat dctImg;
     cv::dct(img, dctImg);
 
-    // Take top-left 8x8 block of low frequencies
+    // Take top-left 8x8 block as it contains the lowest frequencies
     cv::Mat dctLowFreq = dctImg(cv::Rect(0, 0, 8, 8));
 
     // Flatten into a 1D vector safely
@@ -79,11 +89,15 @@ uint64_t Checksum::computeImagePHash64(const std::string& imagePath) {
         }
     }
 
+    //The first value, top-left of DCT is removed because it represents
+    //overall brightness, not structure.
+    //Time complexity O(63). Will optimize later if needed.
     vals.erase(vals.begin());
 
     // Compute median
     std::vector<float> sortedVals = vals;  // Copy for median calculation
     std::nth_element(sortedVals.begin(), sortedVals.begin() + sortedVals.size() / 2, sortedVals.end());
+    //If I were to use 64(even) I would have to take average of middle two values.
     float median = sortedVals[sortedVals.size() / 2];
 
     // Generate hash
@@ -136,34 +150,34 @@ uint64_t Checksum::phashFromMat(cv::Mat & img){
     return hash;
 }
 
-// std::vector<uint64_t> Checksum::setVideoHashes(const std::string& videoPath){
-//   cv::VideoCapture cap(videoPath);
-//   if(!cap.isOpened()){
-//     std::cerr<<"Failed to open video file"<<videoPath<<"\n";
-//     return ;
-//   }
+std::vector<uint64_t> Checksum::setVideoHashes(const std::string& videoPath){
+  cv::VideoCapture cap(videoPath);
+  if(!cap.isOpened()){
+    std::cerr<<"Failed to open video file"<<videoPath<<"\n";
+    std::vector<uint64_t> vec;
+    return vec;
+  }
 
-//   double totalFrames=cap.get(cv::CAP_PROP_FRAME_COUNT);
-//   const int numSamples=10;
-//   for(int i=0; i<numSamples; ++i){
-//     //starts from 0 to totalFrames-1;
-//     int frameIndex=(int)((i*totalFrames)/numSamples);
-//     cap.set(cv::CAP_PROP_POS_FRAMES, frameIndex);
+  double totalFrames=cap.get(cv::CAP_PROP_FRAME_COUNT);
+  const int numSamples=10;
+  std::vector<uint64_t> video_hashes;
+  for(int i=0; i<numSamples; ++i){
+    //starts from 0 to totalFrames-1;
+    int frameIndex=(int)((i*totalFrames)/numSamples);
+    cap.set(cv::CAP_PROP_POS_FRAMES, frameIndex);
     
-//     cv::Mat frame;
-//     if(!cap.read(frame) || frame.empty()){
-//       //std::cerr<<"Failed to read frame "<<frameIndex<<" frame of "<<m_path<<"\n";
-//       //If even the first frame could not be read then mark it for removal.
-//       if(i==0){
-//         m_remove_unique_flag=true;
-//       }
-//       return;
-//     }
+    cv::Mat frame;
+    if(!cap.read(frame) || frame.empty()){
+      //std::cerr<<"Failed to read frame "<<frameIndex<<" frame of "<<m_path<<"\n";
+      //If even the first frame could not be read then mark it for removal.
+      return video_hashes;
+    }
 
-//     cv::Mat gray;
-//     cv::cvtColor(frame, gray, cv::COLOR_BGR2GRAY);
-//     uint64_t hashval=Checksum::phashFromMat(gray);
-//     m_video_hashes.push_back(hashval);
-//   }
+    cv::Mat gray;
+    cv::cvtColor(frame, gray, cv::COLOR_BGR2GRAY);
+    uint64_t hashval=Checksum::phashFromMat(gray);
+    video_hashes.push_back(hashval);
+  }
+  return video_hashes;
 
-// }
+}

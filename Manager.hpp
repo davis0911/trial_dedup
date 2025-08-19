@@ -2,11 +2,11 @@
 #define MANAGER_HPP
 class Manager{
     public:
-        static void findExactDuplicates(char* filename);
+        static void findExactDuplicates(char* filename, bool follow_symlinks);
 
-        static void findSimilarImages(char* filename);
+        static void findSimilarImages(char* filename, bool follow_symlinks);
 
-        static void findSimilarVideos(char* filename);
+        static void findSimilarVideos(char* filename, bool follow_symlinks);
         
 };
 

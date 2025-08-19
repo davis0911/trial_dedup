@@ -3,6 +3,7 @@
 
 #include <string>
 #include <filesystem>
+#include <unordered_set>
 
 /**
  * @class FileTree
@@ -44,15 +45,17 @@ public:
    * @param dir Starting directory path
    * @param recursionLevel Current depth of the recursion (default = 0)
    * @return 
-   *          : -1 if maximum recursion depth is exceeded  
-   *          : 1 if the given path is not a directory  
-   *          : 2 if the directory was processed successfully  
+   *          : -1 if canonical path cannot be resolved.  
+   *          :  0 incase the directory/file is already visited.
+   *          :  1 if the given path is not a directory  
+   *          :  2 if the directory was processed successfully  
    */
   int walk(const std::string& dir, int recursionLevel = 0);
 
 private:
   bool m_followsymlinks;      // Whether to follow symbolic links.
   ReportFcnType m_callback;   // Callback to invoke for each discovered file.
+  std::unordered_set<std::filesystem::path> visitedDirs;
 
   /**
    * @brief Handles a file that was expected to be a directory but isn't.

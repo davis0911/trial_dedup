@@ -98,9 +98,9 @@ public:
     int getDuration() const{
         return m_duration;
     }
-    void setVideoHashes();//{
-    //     m_video_hashes=Checksum::setVideoHashes(m_path.string());
-    // }
+    void setVideoHashes(){
+        m_video_hashes=Checksum::setVideoHashes(m_path.string());
+    }
 
     const std::vector<uint64_t>& getVideoHashVector() const{
         return m_video_hashes;
