@@ -9,7 +9,7 @@ int main(int argc, char* argv[]) {
                 << "  " << argv[0] << " dedup <directory> [follow_symlinks]   # Deduplicate files\n"
                 << "  " << argv[0] << " img <directory>   [follow_symlinks]   # Filter image files\n"
                 << "  " << argv[0] << " vid <directory>   [follow_symlinks]   # Filter video files\n"
-                << "   [follow_symlinks] by default set to false.";
+                << "   [follow_symlinks] by default set to false.\n";
 
         return 1;
     }
@@ -39,3 +39,9 @@ int main(int argc, char* argv[]) {
     }
     return 0;
 }
+
+/*
+To compile use
+g++ main.cpp FileTree.cpp FileInfo.cpp Utility.cpp Checksum.cpp BKTree.cpp Manager.cpp 
+$(pkg-config --cflags --libs opencv4) -lblake3 -o output
+*/

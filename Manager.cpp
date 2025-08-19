@@ -162,7 +162,7 @@ void Manager::findExactDuplicates(char* filename, bool follow_symlinks) {
     //The code given below is to display all files which are duplicates and their regarding details.
     int count = 1;
     int beg = 0;
-    for (int i = 1; i < fileList.size(); ++i) {
+    for (size_t i = 1; i < fileList.size(); ++i) {
         if (fileList[i].getSize() == fileList[i - 1].getSize()) {
             count++;
         } else {
@@ -391,7 +391,7 @@ void Manager::findSimilarVideos(char* filename, bool follow_symlinks){
     if(fileList.size()==0){
         return ;
     }
-    int start=0, end;
+    size_t start=0, end;
     int ifvideo=1;
     while(start!=fileList.size()){
         end=std::upper_bound(fileList.begin()+start, fileList.end(), fileList[start].getDuration(), cmpDurationValFile)-fileList.begin();
